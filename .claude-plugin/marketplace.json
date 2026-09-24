@@ -1,0 +1,16 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "transcription-audio-fr",
+  "description": "Plugin Claude Code de transcription audio en français, en local avec Whisper.",
+  "owner": {
+    "name": "Xavier Gougeon"
+  },
+  "plugins": [
+    {
+      "name": "transcription-audio-fr",
+      "source": "./plugins/transcription-audio-fr",
+      "description": "Transcription locale de fichiers audio en français avec Whisper.",
+      "version": "0.1.0"
+    }
+  ]
+}
