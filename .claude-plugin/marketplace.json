@@ -10,7 +10,7 @@
       "name": "transcription-audio-fr",
       "source": "./plugins/transcription-audio-fr",
       "description": "Transcription locale de fichiers audio en français avec Whisper.",
-      "version": "0.1.0"
+      "version": "0.2.0"
     }
   ]
 }

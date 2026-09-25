@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "transcription-audio-fr",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Transcription locale de fichiers audio en français (vocaux WhatsApp, wav, m4a, mp3…) avec Whisper : Markdown horodaté et JSON, installation guidée de l'environnement.",
   "author": {
     "name": "Xavier Gougeon"
