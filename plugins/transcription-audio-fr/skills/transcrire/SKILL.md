@@ -32,7 +32,9 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/install.py" --check
   python3 "${CLAUDE_SKILL_DIR}/scripts/install.py"
   ```
 
-  Le lancer en arrière-plan et attendre la fin. L'installateur termine par un auto-test et un nouveau rapport. En cas d'échec, transmettre son message tel quel : Python manquant (il indique comment l'installer), proxy d'entreprise, espace disque insuffisant. Ne pas contourner un échec en installant des paquets ailleurs à la main.
+  Le lancer en arrière-plan et attendre la fin. L'installateur vérifie d'abord l'accès à chaque serveur nécessaire et s'arrête avant tout téléchargement si l'un d'eux est bloqué. Il termine par un auto-test et un nouveau rapport. En cas d'échec, transmettre son message tel quel : Python manquant (il indique comment l'installer), domaines bloqués (à faire autoriser par l'administrateur du réseau ou de Cowork), espace disque insuffisant. Ne pas contourner un échec en installant des paquets ou en téléchargeant le modèle depuis une autre source. Si seul le serveur du modèle est bloqué et que l'utilisateur fournit le fichier (`small.pt`), lancer `install.py --model-file <chemin>`.
+
+  En cas d'échec, montrer aussi à l'utilisateur les lignes « Système », « Pythons trouvés » et « Accès réseau » de `install.py --check` : elles suffisent pour diagnostiquer le problème.
 
 Le rapport indique aussi les formats lisibles. opus/ogg, wav, flac, aiff et mp3 sont toujours pris en charge. Le m4a/aac demande afconvert (présent sur tout Mac) ou ffmpeg.
 
