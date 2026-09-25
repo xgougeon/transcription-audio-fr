@@ -1,6 +1,6 @@
 ---
 name: transcrire
-description: Transcrire en local des fichiers audio en français (vocaux WhatsApp .opus, .ogg, .wav, .m4a, .mp3, .flac, .aiff…) avec Whisper, en produisant un Markdown horodaté et un JSON. Sait aussi convertir un audio en WAV. À utiliser dès qu'on demande de transcrire, retranscrire, mettre par écrit ou convertir un vocal, un message audio, un enregistrement, une réunion ou une note vocale en français, même sans nommer Whisper.
+description: Transcrire en local des fichiers audio en français (vocaux WhatsApp .opus, .ogg, .wav, .m4a, .mp3, .flac, .aiff…) avec Whisper, en produisant un Markdown horodaté et un JSON, puis en donnant le texte ponctué et en paragraphes dans la conversation. Sait aussi convertir un audio en WAV. À utiliser dès qu'on demande de transcrire, retranscrire, mettre par écrit ou convertir un vocal, un message audio, un enregistrement, une réunion ou une note vocale en français, même sans nommer Whisper.
 argument-hint: "[fichiers audio…]"
 ---
 
@@ -72,9 +72,20 @@ Whisper se trompe surtout sur les noms propres, les noms d'entreprises, les mots
 - Laisser le Markdown brut intact.
 - Signaler à part les noms et passages incertains, avec leur horodatage.
 - Ne jamais présenter une correction supposée comme un fait : la proposer, puis attendre la confirmation de l'utilisateur.
-- Une fois les corrections confirmées, écrire une version nettoyée à part (`<nom>.nettoye.md`), en appliquant chaque graphie confirmée de façon cohérente.
+- Une fois les corrections confirmées, écrire une version nettoyée à part (`<nom>.nettoye.md`) : le texte final ponctué de l'étape 6, puis les segments horodatés, en appliquant chaque graphie confirmée de façon cohérente.
 
 **Glossaire personnel (facultatif).** Si `install.py --check` indique un glossaire, le lire avant la relecture : il contient les graphies déjà confirmées par cet utilisateur, rangées par lot. Une entrée n'y est ajoutée qu'avec l'accord de l'utilisateur, dans une section datée pour le lot concerné. Ce fichier reste sur sa machine, hors du plugin. Une graphie venue d'un autre lot n'est qu'une piste : elle reste « incertaine » tant que l'utilisateur ne l'a pas confirmée pour ce lot.
+
+## 6. Livrer le texte dans la conversation
+
+Toujours donner la transcription directement dans la réponse, ponctuée et découpée en paragraphes, prête à copier-coller. Les liens vers les fichiers ne remplacent pas ce texte.
+
+- Garder les mots prononcés, y compris les tournures orales (« je sais pas », « la rivière, elle serpente »). Ajouter seulement la ponctuation, les majuscules et un saut de paragraphe à chaque changement d'idée ou de sujet.
+- Ne corriger l'orthographe que lorsque la prononciation est identique : accords (« des montagnes recouvertes »), traits d'union (« qu'est-ce que »), « œ ». Marquer une hésitation ou une phrase interrompue par des points de suspension, sans supprimer de mots. Une version lissée, sans hésitations ni répétitions, ne se fait qu'à la demande de l'utilisateur, à part.
+- Écrire le texte en paragraphes simples, sans citation (`>`) ni bloc de code, entre deux filets (`---`), pour qu'il se copie proprement. Plusieurs fichiers : un intertitre par fichier (nom du fichier, ou date et heure pour des vocaux WhatsApp), dans l'ordre chronologique.
+- Première réponse : le texte ponctué, avec les graphies de Whisper, puis la liste des passages incertains (étape 5). Aucune correction non confirmée dans le texte. S'il n'y a rien d'incertain, ce texte est la version finale.
+- Après confirmation des corrections : redonner le texte final complet, avec les graphies confirmées, et l'écrire aussi dans `<nom>.nettoye.md`.
+- Au-delà d'environ une heure d'audio, prévenir que le texte est long et le livrer en plusieurs réponses successives si nécessaire.
 
 ## Contrôle qualité avant de livrer
 
@@ -83,7 +94,8 @@ Whisper se trompe surtout sur les noms propres, les noms d'entreprises, les mots
 3. Le Markdown a été parcouru à la recherche de phrases incohérentes.
 4. Les noms et passages incertains sont listés séparément.
 5. Aucune correction non confirmée n'est présentée comme certaine.
-6. Des liens vers les fichiers de sortie sont fournis.
+6. La transcription figure directement dans la réponse, ponctuée et en paragraphes, sans citation ni bloc de code.
+7. Des liens vers les fichiers de sortie sont fournis.
 
 ## Environnements
 
