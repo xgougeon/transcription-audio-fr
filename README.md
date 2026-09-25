@@ -7,7 +7,7 @@ Pour chaque lot, il produit :
 - un fichier **Markdown** avec le texte continu et les segments horodatés ;
 - un fichier **JSON** avec tous les détails (durée, segments, décodeur utilisé).
 
-Claude relit ensuite la transcription, signale les noms et passages incertains et ne corrige rien sans confirmation.
+Claude donne aussi le texte directement dans la conversation, ponctué et découpé en paragraphes, prêt à copier-coller. Il signale les noms et passages incertains et ne corrige rien sans confirmation.
 
 ## Où il fonctionne
 
