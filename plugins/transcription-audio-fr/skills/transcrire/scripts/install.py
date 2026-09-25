@@ -19,10 +19,12 @@ Bibliothèque standard uniquement : ce script tourne avec n'importe quel python3
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import platform
 import shutil
+import ssl
 import subprocess
 import sys
 import urllib.error
@@ -46,6 +48,7 @@ MODEL_HOST_URL = (
     "https://openaipublic.azureedge.net/main/whisper/models/"
     "9ecf779972d90ba49c06d968637d720dd632c55bbf19d441fb42bf17a411e794/small.pt"
 )
+CERT_REFUSED = "CERTIFICAT REFUSÉ"
 DESCRIBE_INTERPRETER = (
     "import json, sys, importlib.util as u; print(json.dumps({"
     "'version': '%d.%d' % sys.version_info[:2], "
@@ -73,6 +76,8 @@ else:
     path = os.path.join(sys.argv[2], os.path.basename(url))
     state["model_file"] = path
     state["model_present"] = os.path.isfile(path)
+    state["model_url"] = url
+    state["model_sha256"] = url.split("/")[-2]
 
 formats = soundfile.available_formats()
 state["mp3"] = "MP3" in formats
@@ -190,7 +195,10 @@ def check_url(url: str) -> tuple[bool, str]:
             return False, f"BLOQUÉ (HTTP {error.code})"
         return False, f"réponse inattendue (HTTP {error.code})"
     except (urllib.error.URLError, OSError) as error:
-        return False, f"INACCESSIBLE ({getattr(error, 'reason', error)})"
+        reason = getattr(error, "reason", error)
+        if isinstance(reason, ssl.SSLCertVerificationError):
+            return False, f"{CERT_REFUSED} ({reason.verify_message or reason})"
+        return False, f"INACCESSIBLE ({reason})"
 
 
 def pythonhosted_sample_url() -> str | None:
@@ -202,8 +210,8 @@ def pythonhosted_sample_url() -> str | None:
         return None
 
 
-def network_checks() -> dict[str, tuple[bool, str]]:
-    """État de chaque hôte nécessaire, par rôle."""
+def network_checks() -> dict[str, tuple[str, bool, str]]:
+    """(hôte, accessible, détail) pour chaque hôte nécessaire, par rôle."""
     results = {"pypi": ("pypi.org",) + check_url(PYPI_INDEX_URL)}
     sample = pythonhosted_sample_url()
     results["files"] = ("files.pythonhosted.org",) + (
@@ -221,6 +229,26 @@ NETWORK_ROLES = {
     "torch": "torch pour Linux, version CPU",
     "model": "modèle Whisper",
 }
+
+
+def certificate_help() -> str:
+    """Un certificat refusé vient de la machine, pas d'un domaine bloqué : l'administrateur n'y peut souvent rien."""
+    lines = ["\nINSTALLATION IMPOSSIBLE : Python n'arrive pas à vérifier les certificats HTTPS des serveurs."]
+    command = Path(f"/Applications/Python {sys.version_info[0]}.{sys.version_info[1]}/Install Certificates.command")
+    if sys.platform == "darwin" and command.exists():
+        lines.append(f'Ce Python vient de python.org : lancer une fois\n  open "{command}"\npuis relancer l\'installation.')
+        lines.append("Si l'erreur persiste, le réseau intercepte probablement le HTTPS (proxy d'entreprise) : le signaler à l'administrateur.")
+    else:
+        lines.append("Le réseau intercepte probablement le HTTPS (proxy d'entreprise) : le signaler à l'administrateur.")
+    return "\n".join(lines)
+
+
+def sha256_of(path: Path) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def environment_report(network: dict) -> None:
@@ -255,6 +283,10 @@ def run_probe(model: str) -> dict:
         return {"packages_error": (completed.stderr or completed.stdout).strip()[-500:]}
 
 
+def is_ready(state: dict) -> bool:
+    return bool(state.get("python")) and "packages" in state and bool(state.get("model_present")) and bool(state.get("opus"))
+
+
 def report(state: dict, model: str) -> bool:
     log(f"Dossier de données : {_env.data_dir()}")
     python_ok = bool(state.get("python"))
@@ -280,7 +312,7 @@ def report(state: dict, model: str) -> bool:
         decoders.append(f"m4a/aac OK via {converter}" if converter else "m4a/aac indisponible (installer ffmpeg)")
         log("Formats audio : " + " ; ".join(decoders))
     log(f"Glossaire personnel : {'présent, ' + str(_env.glossary_path()) if _env.glossary_path().exists() else 'aucun'}")
-    ready = packages_ok and model_ok and bool(state.get("opus"))
+    ready = is_ready(state)
     log(f"STATUT : {'prêt' if ready else 'incomplet, lancer install.py sans --check'}")
     return ready
 
@@ -303,16 +335,12 @@ def install(args: argparse.Namespace) -> int:
     if free < MIN_FREE_BYTES:
         log(f"Attention : seulement {free / 1024**3:.1f} Go libres, il en faut environ 4.")
 
+    model_source = None
     if args.model_file:
-        source = Path(args.model_file).expanduser().resolve()
-        if not source.is_file():
-            log(f"Fichier de modèle introuvable : {source}")
+        model_source = Path(args.model_file).expanduser().resolve()
+        if not model_source.is_file():
+            log(f"Fichier de modèle introuvable : {model_source}")
             return 1
-        _env.models_dir().mkdir(parents=True, exist_ok=True)
-        target = _env.models_dir() / source.name
-        if not target.exists():
-            log(f"-> copie du modèle {source.name} dans {_env.models_dir()}")
-            shutil.copyfile(source, target)
 
     state = run_probe(args.model)
     need_packages = "packages" not in state
@@ -328,6 +356,9 @@ def install(args: argparse.Namespace) -> int:
         blocked += [network["pypi"][0], network["files"][0]]
     if need_model and not network["model"][1]:
         blocked.append(network["model"][0])
+    if any(detail.startswith(CERT_REFUSED) for host, ok, detail in network.values() if host in blocked):
+        log(certificate_help())
+        return 1
     if blocked:
         log(
             "\nINSTALLATION IMPOSSIBLE : ces domaines ne sont pas joignables depuis cette machine :\n  "
@@ -335,8 +366,9 @@ def install(args: argparse.Namespace) -> int:
             + "\nDemander à l'administrateur (réseau d'entreprise, ou réglages réseau de Cowork) de les autoriser."
         )
         if need_model and not network["model"][1]:
+            official = f", à l'adresse {state['model_url']}" if state.get("model_url") else ""
             log(
-                "Pour le modèle seulement, on peut aussi fournir le fichier à la main :\n"
+                f"Pour le modèle seulement, on peut aussi le télécharger depuis un autre réseau{official}, puis :\n"
                 f"  python3 install.py --model-file /chemin/vers/{args.model}.pt"
             )
         return 1
@@ -376,9 +408,22 @@ def install(args: argparse.Namespace) -> int:
         log(state["model_error"])
         return 1
 
+    _env.models_dir().mkdir(parents=True, exist_ok=True)
+    if model_source and not state.get("model_present"):
+        # Whisper ne cherche le modèle que sous son nom officiel : on le copie sous ce nom,
+        # après avoir vérifié que c'est bien le bon fichier.
+        log(f"-> vérification de {model_source.name}")
+        if sha256_of(model_source) != state["model_sha256"]:
+            log(f"Ce fichier n'est pas le modèle {args.model} attendu (empreinte différente) : téléchargement incomplet ou autre modèle.")
+            return 1
+        target = Path(state["model_file"])
+        log(f"-> copie du modèle dans {target}")
+        partial = target.with_name(target.name + ".partiel")
+        shutil.copyfile(model_source, partial)
+        os.replace(partial, target)
+        state["model_present"] = True
     if not state.get("model_present"):
         log(f"-> téléchargement du modèle {args.model} dans {_env.models_dir()}")
-    _env.models_dir().mkdir(parents=True, exist_ok=True)
     log("-> auto-test : chargement du modèle et transcription de 2 s de silence")
     completed = subprocess.run(
         [str(_env.venv_python()), "-c", SELF_TEST, args.model, str(_env.models_dir())],
@@ -403,8 +448,12 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.check:
-        environment_report(network_checks())
-        return 0 if report(run_probe(args.model), args.model) else 1
+        state = run_probe(args.model)
+        # Diagnostic seulement si quelque chose manque : --check tourne avant chaque
+        # transcription et doit rester rapide, même hors ligne.
+        if not is_ready(state):
+            environment_report(network_checks())
+        return 0 if report(state, args.model) else 1
     return install(args)
 
 
